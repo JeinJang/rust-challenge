@@ -36,8 +36,8 @@ impl Dungeon {
     }
 
     pub fn add_room(&mut self, name: &str) -> Result<(), Errors> {
-        let rooms = &self.rooms.clone();
-        let room_names = rooms.clone().iter().map(|x| x.name).collect::<Vec<String>>();
+        let rooms = &mut self.rooms.clone();
+        let room_names = rooms.clone().iter().map(|x| x.name.clone()).collect::<Vec<String>>();
 
         if room_names.contains(&String::from(name.clone())) {
             return Err(Errors::DuplicateRoom(String::from(name)));
@@ -50,17 +50,17 @@ impl Dungeon {
                 west: None,
             };
             rooms.push(new_room);
-            &self.rooms = rooms;
+            *self = Dungeon { rooms: (*rooms.clone()).to_vec() };
+
             return Ok(());
         }
     }
 
     pub fn get_room(&self, room_name: &str) -> Result<&Room, Errors> {
-        let rooms = &self.rooms.clone();
-        let room_names = rooms.clone().iter().map(|x| x.name).collect::<Vec<String>>();
+        let room_names = &self.rooms.clone().iter().map(|x| x.name.clone()).collect::<Vec<String>>();
 
         if room_names.contains(&String::from(room_name.clone())) {
-            return Ok(rooms.iter().find(|x| x.name == String::from(room_name)).unwrap());
+            return Ok(&self.rooms.iter().find(|x| x.name == String::from(room_name)).unwrap());
         } else {
             return Err(Errors::UnknownRoom(String::from(room_name)));
         }
@@ -72,8 +72,8 @@ impl Dungeon {
         direction: Direction,
         other_room_name: &str,
     ) -> Result<(), Errors> {
-        let rooms = &self.rooms.clone();
-        let room_names = rooms.clone().iter().map(|x| x.name).collect::<Vec<String>>();
+        let rooms = &mut self.rooms.clone();
+        let room_names = rooms.clone().iter().map(|x| x.name.clone()).collect::<Vec<String>>();
         let room_exists = room_names.clone().contains(&String::from(room_name.clone()));
         let other_room_exists = room_names.clone().contains(&String::from(other_room_name.clone()));
 
@@ -81,52 +81,60 @@ impl Dungeon {
         if room_exists.clone() && other_room_exists.clone() {
             match direction {
                 Direction::North => {
-                    let new_rooms = rooms.iter().for_each(|x| {
-                        if x.name == String::from(room_name.clone()) {
-                            x.north = Some(String::from(other_room_name.clone()));
+                    let _new_rooms = rooms.iter().map(|x| {
+                        let mut new_x = x.clone();
+                        if new_x.name == String::from(room_name.clone()) {
+                            new_x.north = Some(String::from(other_room_name.clone()));
                         }
-                        if x.name == String::from(other_room_name.clone()) {
-                            x.south = Some(String::from(room_name.clone()));
+                        if new_x.name == String::from(other_room_name.clone()) {
+                            new_x.south = Some(String::from(room_name.clone()));
                         }
-                    });
+                        return new_x;
+                    }).collect::<Vec<Room>>();
 
-                    &self.rooms = new_rooms;
+                    *self = Dungeon { rooms: _new_rooms };
                 },
                 Direction::South => {
-                    let new_rooms = rooms.iter().for_each(|x| {
-                        if x.name == String::from(room_name.clone()) {
-                            x.south = Some(String::from(other_room_name.clone()));
+                    let _new_rooms = rooms.iter().map(|x| {
+                        let mut new_x = x.clone();
+                        if new_x.name == String::from(room_name.clone()) {
+                            new_x.south = Some(String::from(other_room_name.clone()));
                         }
-                        if x.name == String::from(other_room_name.clone()) {
-                            x.north = Some(String::from(room_name.clone()));
+                        if new_x.name == String::from(other_room_name.clone()) {
+                            new_x.north = Some(String::from(room_name.clone()));
                         }
-                    });
+                        return new_x;
+                    }).collect::<Vec<Room>>();
 
-                    &self.rooms = new_rooms;
+                    *self = Dungeon { rooms: _new_rooms };
                 },
                 Direction::East => {
-                    let new_rooms = rooms.iter().for_each(|x| {
-                        if x.name == String::from(room_name.clone()) {
-                            x.east = Some(String::from(other_room_name.clone()));
+                    let _new_rooms = rooms.iter().map(|x| {
+                        let mut new_x = x.clone();
+                        if new_x.name == String::from(room_name.clone()) {
+                            new_x.east = Some(String::from(other_room_name.clone()));
                         }
-                        if x.name == String::from(other_room_name.clone()) {
-                            x.west = Some(String::from(room_name.clone()));
+                        if new_x.name == String::from(other_room_name.clone()) {
+                            new_x.west = Some(String::from(room_name.clone()));
                         }
-                    });
+                        return new_x;
+                    }).collect::<Vec<Room>>();
 
-                    &self.rooms = new_rooms;
+                    *self = Dungeon { rooms: _new_rooms };
                 },
                 Direction::West => {
-                    let new_rooms = rooms.iter().for_each(|x| {
-                        if x.name == String::from(room_name.clone()) {
-                            x.west = Some(String::from(other_room_name.clone()));
+                    let _new_rooms = rooms.iter().map(|x| {
+                        let mut new_x = x.clone();
+                        if new_x.name == String::from(room_name.clone()) {
+                            new_x.west = Some(String::from(other_room_name.clone()));
                         }
-                        if x.name == String::from(other_room_name.clone()) {
-                            x.east = Some(String::from(room_name.clone()));
+                        if new_x.name == String::from(other_room_name.clone()) {
+                            new_x.east = Some(String::from(room_name.clone()));
                         }
-                    });
+                        return new_x;
+                    }).collect::<Vec<Room>>();
 
-                    &self.rooms = new_rooms;
+                    *self = Dungeon { rooms: _new_rooms };
                 },
             }
             return Ok(());
@@ -138,38 +146,41 @@ impl Dungeon {
     }
 
     pub fn get_next_room(&self, room_name: &str, direction: Direction) -> Result<Option<&Room>, Errors> {
-        let rooms = &self.rooms.clone();
-        let room_names = rooms.clone().iter().map(|x| x.name).collect::<Vec<String>>();
+        let room_names = &self.rooms.clone().iter().map(|x| x.name.clone()).collect::<Vec<String>>();
 
         if room_names.contains(&String::from(room_name.clone())) {
-            let room = rooms.clone().iter().find(|x| x.name == room_name);
+            let room = &self.rooms.iter().find(|x| x.name == room_name);
             match direction {
                 Direction::North => {
-                    if room.clone().north == None {
+                    if room.clone().unwrap().north == None {
                         return Ok(None);
                     } else {
-                        return Ok(rooms.iter().find(|x| x.name == room.north));
+                        let next_room = &self.rooms.iter().find(|x| x.name == room.clone().unwrap().north.clone().unwrap());
+                        Ok(*next_room)
                     }
                 },
                 Direction::South => {
-                    if room.clone().south == None {
+                    if room.clone().unwrap().south == None {
                         return Ok(None);
                     } else {
-                        return Ok(rooms.iter().find(|x| x.name == room.south));
+                        let next_room = &self.rooms.iter().find(|x| x.name == room.clone().unwrap().south.clone().unwrap());
+                        Ok(*next_room)
                     }
                 },
                 Direction::East => {
-                    if room.clone().east == None {
+                    if room.clone().unwrap().east == None {
                         return Ok(None);
                     } else {
-                        return Ok(rooms.iter().find(|x| x.name == room.east));
+                        let next_room = &self.rooms.iter().find(|x| x.name == room.clone().unwrap().east.clone().unwrap());
+                        Ok(*next_room)
                     }
                 },
                 Direction::West => {
-                    if room.clone().west == None {
+                    if room.clone().unwrap().west == None {
                         return Ok(None);
                     } else {
-                        return Ok(rooms.iter().find(|x| x.name == room.west));
+                        let next_room = &self.rooms.iter().find(|x| x.name == room.clone().unwrap().west.clone().unwrap());
+                        Ok(*next_room)
                     }
                 },
             }

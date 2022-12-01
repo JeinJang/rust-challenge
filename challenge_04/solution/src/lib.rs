@@ -1,3 +1,8 @@
+use std::str;
+use std::io::{BufRead};
+use std::collections::VecDeque;
+use std::collections::HashMap;
+
 #[derive(Debug)]
 pub enum Errors {
     DuplicateRoom(String),
@@ -14,7 +19,6 @@ pub enum Direction {
     East,
     West,
 }
-
 #[derive(Clone)]
 pub struct Room {
     pub name: String,
@@ -26,6 +30,22 @@ pub struct Room {
 
 pub struct Dungeon {
     rooms: Vec<Room>,
+}
+
+impl Direction {
+    pub fn get_direction(direction: &str) -> Result<Self, Errors> {
+        if direction == "South" {
+            return Ok(Self::South);
+        } else if direction == "North" {
+            return Ok(Self::North);
+        } else if direction == "East" {
+            return Ok(Self::East);
+        } else if direction == "West" {
+            return Ok(Self::West);
+        } else {
+            return Err(Errors::DirectionParseError(String::from(direction)));
+        }
+    }
 }
 
 impl Dungeon {
@@ -189,15 +209,153 @@ impl Dungeon {
         }
     }
 
-    // fn match_prefix<'a, 'b>(prefix: &'a str, input: &'b str) -> Option<&'b str> {
-    //     todo!()
-    // }
 
-    // pub fn find_path(
-    //     &self,
-    //     start_room_name: &str,
-    //     end_room_name: &str
-    // ) -> Result<Option<Vec<&Room>>, Errors> {
-    //     todo!()
-    // }
+    pub fn from_reader<B: BufRead>(reader: B) -> Result<Self, Errors> {
+        // line number
+        let mut line_number = 0;
+        // line number: link로 넘어갈 때 초기화됨
+        let mut _index = 0;
+        let mut current = 0;
+
+        let mut new_dungeon = Self::new();
+        
+        for value in reader.lines() {
+            // io error
+            match value {
+                Ok(..) => (),
+                Err(error) => return Err(Errors::IoError(error)),
+            };
+
+            let line = &value.unwrap();
+
+            if _index == 0 && ((current == 0 && line != "## Rooms") || (current == 1 && line != "## Links")) {
+                return Err(Errors::LineParseError { line_number: line_number + 1 });
+            }
+            if _index > 0 && line != "" {
+                if !line.starts_with("- ") {
+                    return Err(Errors::LineParseError { line_number: line_number + 1 });
+                }
+
+                let new_line = &line[2..line.len()];
+
+                if current == 0 {
+                    let result = new_dungeon.add_room(new_line);
+                    match result {
+                        Ok(()) => result.unwrap(),
+                        Err(error) => return Err(error),
+                    };
+                } else {
+                    let link_info = new_line.split(" -> ").collect::<Vec<&str>>();
+                    let direction = Direction::get_direction(link_info[1]);
+
+                    match direction {
+                        Ok(value) => {
+                            let result = new_dungeon.set_link(link_info[0], value, link_info[2]);
+
+                            match result {
+                                Ok(()) => result.unwrap(),
+                                Err(error) => return Err(error),
+                            };
+                        },
+                        Err(error) => return Err(error),
+                    }
+                }
+            }
+
+            _index += 1;
+            line_number += 1;
+
+            if _index > 0 && current == 0 && line == "" {
+                current += 1;
+                _index = 0;
+            }
+        }
+
+        // empty reader
+        if _index == 0 && current == 0 {
+            return Err(Errors::LineParseError { line_number: 0 });
+        }
+
+        return Ok(new_dungeon);
+    }
+
+    pub fn find_path(
+        &self,
+        start_room_name: &str,
+        end_room_name: &str
+    ) -> Result<Option<Vec<&Room>>, Errors> {
+        let mut q = VecDeque::new();
+        let mut visited = vec![String::from(start_room_name.clone())];
+        let mut map = HashMap::new();
+
+        q.push_back(String::from(start_room_name.clone()));
+
+        // 있는 방인지 없는 방인지 여부 확인
+        match self.clone().get_room(start_room_name.clone()) {
+            Ok(_value) => (),
+            Err(error) => return Err(error),
+        };
+
+        match self.clone().get_room(end_room_name.clone()) {
+            Ok(_value) => (),
+            Err(error) => return Err(error),
+        };
+
+        // reflexive
+        if start_room_name.clone() == end_room_name.clone() {
+            return Ok(Some(self.rooms.iter().filter(|x| x.name == start_room_name).collect()));
+        }
+
+        for room in &self.rooms.clone() {
+            let mut children = vec![];
+            if room.clone().north != None {
+                children.push(String::from(room.clone().north.unwrap()));
+            }
+            if room.clone().south != None {
+                children.push(String::from(room.clone().south.unwrap()));
+            }
+            if room.clone().east != None {
+                children.push(String::from(room.clone().east.unwrap()));
+            }
+            if room.clone().west != None {
+                children.push(String::from(room.clone().west.unwrap()));
+            }
+            map.insert(room.clone().name, children);
+        }
+
+        let mut path_map = HashMap::new();
+
+        while let Some(t) = q.pop_front() {
+            let children = map.get(&t);
+
+            for child in children.clone().unwrap() {
+                if !visited.contains(&child.clone()) {
+                    visited.push(child.clone());
+                    q.push_back(child.clone());
+
+                    path_map.insert(child.clone(), t.clone());
+                }
+            }
+
+            if end_room_name.clone() == String::from(t.clone()) {
+                break;
+            }
+        }
+
+        if visited.contains(&String::from(end_room_name.clone())) {
+            let mut path_room = String::from(end_room_name.clone());
+            let mut _path = vec![self.clone().get_room(&path_room.clone()).unwrap()];
+
+            while path_room != String::from(start_room_name.clone()) {
+                let ele = &path_map.get(&path_room).unwrap();
+                let target = &self.clone().get_room(ele.clone()).unwrap().name;
+                _path.push(self.clone().get_room(&target).unwrap());
+                path_room = (ele.clone()).to_string();
+            }
+
+            return Ok(Some(_path.into_iter().rev().collect()));
+        } else {
+            return Ok(None);
+        }
+    }
 }
